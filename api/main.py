@@ -11,7 +11,6 @@ from src import config, library
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     added = await run_in_threadpool(library.index_folder, config.DATA_DIR)

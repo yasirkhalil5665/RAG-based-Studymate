@@ -1,7 +1,0 @@
-__pycache__/
-.ipynb_checkpoints/
-chroma_db/
-library/
-notebooks/chroma_db/
-data/*.pdf
-.venv/
