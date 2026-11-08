@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Studymate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,60 +19,91 @@
 
 <div class="app">
   <aside class="sidebar">
-    <div class="logo">
-      <span class="logo-mark">
-        <svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5v-15Z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/></svg>
-      </span>
-      <span class="logo-text">Studymate</span>
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24"><path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Studymate</div>
+        <p class="brand-sub">Study assistant for your lectures</p>
+      </div>
     </div>
 
-    <div class="side-head"><h2>Library</h2><span class="count" id="docCount">0</span></div>
+    <div class="side-pad">
+      <label class="dropzone" id="dropzone" tabindex="0">
+        <span class="drop-icon"><svg viewBox="0 0 24 24"><path d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg></span>
+        <strong id="dropTitle">Add lecture PDFs</strong>
+        <span id="dropHint">Browse files or drag &amp; drop</span>
+        <span class="drop-tags"><em>PDF</em><small>Scanned pages can't be read</small></span>
+        <input id="file" type="file" accept="application/pdf,.pdf" multiple hidden>
+      </label>
+    </div>
 
-    <label class="dropzone" id="dropzone" tabindex="0">
-      <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
-      <strong id="dropTitle">Add PDFs</strong>
-      <span id="dropHint">Browse or drop files here</span>
-      <input id="file" type="file" accept="application/pdf,.pdf" multiple hidden>
-    </label>
-
+    <div class="lib-head">
+      <h2>Document library</h2>
+      <span class="count" id="docCount">0</span>
+    </div>
     <ul class="doc-list" id="docs"></ul>
     <p class="side-empty" id="docsEmpty" hidden>Your documents will appear here.</p>
+
   </aside>
 
   <main class="workspace">
     <header class="topbar">
-      <div>
+      <div class="top-left">
         <h1 id="pageTitle">Chat</h1>
-        <p id="pageSub">Ask questions about your lectures.</p>
+        <span class="pill" id="pill">Cites your PDFs</span>
+        <span class="divider"></span>
+        <label class="scope">
+          <span>Study scope</span>
+          <select id="scope" aria-label="Study scope"></select>
+        </label>
       </div>
-      <label class="scope"><span>Study scope</span><select id="scope"></select></label>
-    </header>
 
-    <nav class="tabs" role="tablist">
-      <button role="tab" aria-selected="true" data-tab="chat"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg>Chat</button>
-      <button role="tab" aria-selected="false" data-tab="cards"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="14" height="12" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v10"/></svg>Flashcards</button>
-      <button role="tab" aria-selected="false" data-tab="quiz"><svg viewBox="0 0 24 24"><path d="M9 11l2 2 4-4"/><rect x="4" y="4" width="16" height="16" rx="3"/></svg>Quiz</button>
-      <button role="tab" aria-selected="false" data-tab="summary"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h8"/></svg>Summary</button>
-    </nav>
+      <nav class="modes" role="tablist" aria-label="Study tools">
+        <button role="tab" aria-selected="true" data-tab="chat"><svg viewBox="0 0 24 24"><path d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"/></svg>Chat</button>
+        <button role="tab" aria-selected="false" data-tab="cards"><svg viewBox="0 0 24 24"><path d="M16.5 8.25V6a2.25 2.25 0 00-2.25-2.25H6A2.25 2.25 0 003.75 6v8.25A2.25 2.25 0 006 16.5h2.25m8.25-8.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-7.5A2.25 2.25 0 018.25 18v-1.5m8.25-8.25h-6A2.25 2.25 0 008.25 10.5v6"/></svg>Flashcards</button>
+        <button role="tab" aria-selected="false" data-tab="quiz"><svg viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Practice quiz</button>
+        <button role="tab" aria-selected="false" data-tab="summary"><svg viewBox="0 0 24 24"><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/></svg>Summary</button>
+      </nav>
+
+      <button class="btn-outline" type="button" id="clearBtn"><svg viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>New chat</button>
+    </header>
 
     <div class="notice" id="notice" hidden>Add at least one PDF in the library to start studying.</div>
 
     <section class="panel on" id="tab-chat">
-      <div class="messages" id="msgs">
-        <div class="chat-empty" id="chatEmpty">
-          <h2>What would you like to know?</h2>
-          <p>Answers come only from your documents, with the source pages shown.</p>
+      <div class="feed" id="msgs">
+        <div class="hero" id="chatEmpty">
+          <div class="hero-icon"><svg viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg></div>
+          <h2>What would you like to explore?</h2>
+          <p>Answers come only from your documents, and every answer shows the passages it used.</p>
           <div class="suggest">
-            <button type="button">Explain the main idea of this lecture</button>
-            <button type="button">What are the key definitions?</button>
-            <button type="button">Give an example of the main concept</button>
+            <button type="button" class="paper-card" data-prompt="Explain the main idea of this lecture in simple terms.">
+              <span class="s-ico">💡</span><span><b>Explain the main idea</b><small>A plain-language overview</small></span>
+            </button>
+            <button type="button" class="paper-card" data-prompt="List the key definitions and formulas.">
+              <span class="s-ico">📐</span><span><b>Key definitions and formulas</b><small>Pull out what to memorize</small></span>
+            </button>
+            <button type="button" class="paper-card" data-prompt="Give a worked example of the main concept.">
+              <span class="s-ico">🎯</span><span><b>Show a worked example</b><small>See the idea applied</small></span>
+            </button>
+            <button type="button" class="paper-card" data-prompt="What are the most important takeaways?">
+              <span class="s-ico">🔍</span><span><b>Main takeaways</b><small>What matters most</small></span>
+            </button>
           </div>
         </div>
       </div>
-      <form class="composer" id="chatForm">
-        <textarea id="question" rows="1" placeholder="Ask a question" aria-label="Question"></textarea>
-        <button class="icon-btn" id="sendBtn" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg></button>
-        <button class="btn ghost" type="button" id="clearBtn">New chat</button>
+
+      <form class="dock-wrap" id="chatForm">
+        <div class="dock">
+          <div class="dock-hint"><span class="dot"></span><span id="scopeHint">Searching all documents</span></div>
+          <div class="dock-row">
+            <textarea id="question" rows="1" placeholder="Ask a question about your lectures" aria-label="Question"></textarea>
+            <button class="send" id="sendBtn" type="submit"><span>Send</span><svg viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></button>
+          </div>
+        </div>
+        <p class="dock-foot"><span>Enter to send</span><span>Shift + Enter for a new line</span></p>
       </form>
     </section>
 

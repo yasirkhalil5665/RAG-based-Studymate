@@ -4,8 +4,11 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const esc = (value) =>
   String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const FILE_ICON = '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/></svg>';
+const FILE_ICON = '<svg viewBox="0 0 24 24"><path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>';
 const X_ICON = '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+const CHECK_ICON = '<svg viewBox="0 0 24 24"><path d="M4.5 12.75l6 6 9-13.5"/></svg>';
+const COPY_ICON = '<svg viewBox="0 0 24 24"><path d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"/></svg>';
+const BOOK_ICON = '<svg viewBox="0 0 24 24"><path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>';
 
 function md(text) {
   const inline = (t) => t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`(.+?)`/g, "<code>$1</code>");
@@ -64,6 +67,15 @@ async function busy(button, label, task) {
   }
 }
 
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("Copied to clipboard.");
+  } catch {
+    toast("Could not copy. Select the text and copy it manually.", true);
+  }
+}
+
 function download(name, text) {
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
@@ -76,6 +88,13 @@ function download(name, text) {
 let docs = [];
 const scope = () => $("#scope").value || null;
 
+function updateScopeHint() {
+  const doc = docs.find((d) => d.source === scope());
+  $("#scopeHint").textContent = doc
+    ? `Searching in ${doc.name}`
+    : `Searching all ${docs.length} document${docs.length === 1 ? "" : "s"}`;
+}
+
 async function loadDocs() {
   docs = await api("/api/documents");
   const keep = scope();
@@ -86,12 +105,15 @@ async function loadDocs() {
 
   $("#docs").innerHTML = docs
     .map((d, i) =>
-      `<li>${FILE_ICON}<span class="name" title="${esc(d.name)}">${esc(d.name)}</span>` +
+      `<li><span class="doc-icon">${FILE_ICON}</span>` +
+      `<div class="doc-info"><span class="name" title="${esc(d.name)}">${esc(d.name)}</span>` +
+      `<span class="doc-meta">${CHECK_ICON}Indexed</span></div>` +
       `<button data-i="${i}" aria-label="Remove ${esc(d.name)}" title="Remove">${X_ICON}</button></li>`)
     .join("");
   $("#docCount").textContent = docs.length;
   $("#docsEmpty").hidden = docs.length > 0;
   $("#notice").hidden = docs.length > 0;
+  updateScopeHint();
 }
 
 async function upload(files) {
@@ -113,8 +135,8 @@ async function upload(files) {
     toast(error.message, true);
   } finally {
     zone.classList.remove("busy");
-    $("#dropTitle").textContent = "Add PDFs";
-    $("#dropHint").textContent = "Browse or drop files here";
+    $("#dropTitle").textContent = "Add lecture PDFs";
+    $("#dropHint").textContent = "Browse files or drag & drop";
     $("#file").value = "";
   }
 }
@@ -122,6 +144,7 @@ async function upload(files) {
 function setupLibrary() {
   const zone = $("#dropzone");
   $("#file").addEventListener("change", (e) => upload(e.target.files));
+  $("#scope").addEventListener("change", updateScopeHint);
   zone.addEventListener("keydown", (e) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("#file").click(); }
   });
@@ -153,57 +176,76 @@ const sessionId = localStorage.getItem("sid") || (crypto.randomUUID ? crypto.ran
 localStorage.setItem("sid", sessionId);
 let emptyChat = "";
 
-function addMessage(role, html) {
-  $("#chatEmpty")?.remove();
-  const row = document.createElement("div");
-  row.className = `msg ${role}`;
-  row.innerHTML = `<div class="avatar">${role === "user" ? "You" : "AI"}</div><div class="bubble">${html}</div>`;
-  $("#msgs").append(row);
+function scrollFeed() {
   $("#msgs").scrollTop = $("#msgs").scrollHeight;
-  return $(".bubble", row);
 }
 
-function showSources(bubble, sources) {
-  if (!sources.length) return;
-  const chips = document.createElement("div");
-  chips.className = "chips";
-  const snippet = document.createElement("div");
-  snippet.className = "snippet";
-  snippet.hidden = true;
-  let open = -1;
-  sources.forEach((s, i) => {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "chip";
-    chip.setAttribute("aria-expanded", "false");
-    chip.innerHTML = `${FILE_ICON}${esc(s.file)} · p.${s.page}`;
-    chip.addEventListener("click", () => {
-      chips.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-expanded", "false"));
-      if (open === i) { snippet.hidden = true; open = -1; return; }
-      chip.setAttribute("aria-expanded", "true");
-      snippet.textContent = `${s.text}…`;
-      snippet.hidden = false;
-      open = i;
-    });
-    chips.append(chip);
-  });
-  bubble.append(chips, snippet);
+function addUser(text) {
+  $("#chatEmpty")?.remove();
+  const row = document.createElement("div");
+  row.className = "turn user";
+  row.innerHTML = `<div class="u-bubble"><p>${esc(text)}</p></div><div class="avatar-user">You</div>`;
+  $("#msgs").append(row);
+  scrollFeed();
+}
+
+function addAi() {
+  const row = document.createElement("div");
+  row.className = "turn ai";
+  row.innerHTML = `<div class="avatar-ai">${BOOK_ICON}</div>
+    <div class="ai-card">
+      <div class="ai-head"><span class="ai-name">Studymate</span><span class="ai-meta" hidden></span></div>
+      <div class="ai-body"><span class="typing"><i></i><i></i><i></i></span></div>
+      <div class="ai-sources" hidden><div class="src-title">Source passages</div><div class="src-grid"></div></div>
+      <div class="ai-actions" hidden><button type="button" class="link-btn">${COPY_ICON}Copy</button></div>
+    </div>`;
+  $("#msgs").append(row);
+  scrollFeed();
+  return {
+    row,
+    body: $(".ai-body", row),
+    meta: $(".ai-meta", row),
+    sources: $(".ai-sources", row),
+    grid: $(".src-grid", row),
+    actions: $(".ai-actions", row),
+  };
+}
+
+function fillAnswer(ai, result) {
+  ai.body.innerHTML = md(result.answer);
+  if (result.sources.length) {
+    ai.meta.textContent = `• ${result.sources.length} passages retrieved`;
+    ai.meta.hidden = false;
+    ai.grid.innerHTML = result.sources
+      .map((s) =>
+        `<button type="button" class="src-card" aria-expanded="false">
+          <div class="src-top"><span class="src-file">${esc(s.file)}</span><span class="src-page">p. ${s.page}</span></div>
+          <p class="src-text">“${esc(s.text)}…”</p></button>`)
+      .join("");
+    ai.grid.querySelectorAll(".src-card").forEach((card) =>
+      card.addEventListener("click", () => {
+        const open = card.classList.toggle("open");
+        card.setAttribute("aria-expanded", String(open));
+      }));
+    ai.sources.hidden = false;
+  }
+  ai.actions.hidden = false;
+  $(".link-btn", ai.actions).onclick = () => copyText(result.answer);
 }
 
 async function sendQuestion(question) {
-  addMessage("user", `<p>${esc(question)}</p>`);
-  const bubble = addMessage("bot", '<span class="typing"><i></i><i></i><i></i></span>');
+  addUser(question);
+  const ai = addAi();
   $("#sendBtn").disabled = true;
   try {
     const result = await post("/api/chat", { session_id: sessionId, question, scope: scope() });
-    bubble.innerHTML = md(result.answer);
-    showSources(bubble, result.sources);
+    fillAnswer(ai, result);
   } catch (error) {
-    bubble.closest(".msg").remove();
+    ai.row.remove();
     toast(error.message, true);
   } finally {
     $("#sendBtn").disabled = false;
-    $("#msgs").scrollTop = $("#msgs").scrollHeight;
+    scrollFeed();
     $("#question").focus();
   }
 }
@@ -214,7 +256,7 @@ function setupChat() {
 
   const grow = () => {
     input.style.height = "auto";
-    input.style.height = `${Math.min(input.scrollHeight, 140)}px`;
+    input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
   };
   const submit = () => {
     const question = input.value.trim();
@@ -230,8 +272,8 @@ function setupChat() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
   });
   $("#msgs").addEventListener("click", (e) => {
-    const suggestion = e.target.closest(".suggest button");
-    if (suggestion) { input.value = suggestion.textContent; input.focus(); grow(); }
+    const card = e.target.closest("[data-prompt]");
+    if (card) { input.value = card.dataset.prompt; input.focus(); grow(); }
   });
   $("#clearBtn").addEventListener("click", async () => {
     $("#msgs").innerHTML = emptyChat;
@@ -378,10 +420,7 @@ function setupSummary(styles) {
       area.innerHTML = `<div class="prose">${md(summary)}</div>
         <div class="below"><button class="btn ghost" id="copySum">Copy</button>
         <button class="btn ghost" id="saveSum">Download as Markdown</button></div>`;
-      $("#copySum").onclick = async () => {
-        await navigator.clipboard.writeText(summary);
-        toast("Copied to clipboard.");
-      };
+      $("#copySum").onclick = () => copyText(summary);
       $("#saveSum").onclick = () => download("summary.md", summary);
     }).then(() => {
       if (area.querySelector(".skeleton")) area.innerHTML = SUMMARY_HINT;
@@ -391,21 +430,22 @@ function setupSummary(styles) {
 
 // ---------- tabs and start ----------
 const TITLES = {
-  chat: ["Chat", "Ask questions about your lectures."],
-  cards: ["Flashcards", "Review key concepts one card at a time."],
-  quiz: ["Quiz", "Test yourself with multiple-choice questions."],
-  summary: ["Summary", "Turn a whole lecture into short notes."],
+  chat: ["Chat", "Cites your PDFs"],
+  cards: ["Flashcards", "Made from your notes"],
+  quiz: ["Practice quiz", "Written by AI"],
+  summary: ["Summary", "Whole lecture, in short notes"],
 };
 
 function setupTabs() {
-  const tabs = document.querySelectorAll(".tabs button");
+  const tabs = document.querySelectorAll(".modes button");
   tabs.forEach((tab) =>
     tab.addEventListener("click", () => {
+      const name = tab.dataset.tab;
       tabs.forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
-      document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === `tab-${tab.dataset.tab}`));
-      const [title, subtitle] = TITLES[tab.dataset.tab];
-      $("#pageTitle").textContent = title;
-      $("#pageSub").textContent = subtitle;
+      document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === `tab-${name}`));
+      $("#pageTitle").textContent = TITLES[name][0];
+      $("#pill").textContent = TITLES[name][1];
+      $("#clearBtn").hidden = name !== "chat";
     }));
 }
 
