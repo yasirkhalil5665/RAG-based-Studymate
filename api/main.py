@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from src import config, rag
 
-UI_DIR = Path(__file__).parent / "UI"
+UI_DIR = Path(__file__).parent.parent / "UI"
 sessions = {}
 
 
