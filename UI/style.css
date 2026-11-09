@@ -83,9 +83,6 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .modes button svg { width: 14px; height: 14px; }
 .modes button:hover { color: var(--ink-900); }
 .modes button[aria-selected="true"] { background: var(--brand-700); color: #fff; font-weight: 600; box-shadow: var(--shadow-sm); }
-.btn-outline { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px; font-weight: 500; color: var(--ink-700); background: #fff; border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow-sm); cursor: pointer; transition: background .15s; }
-.btn-outline svg { width: 14px; height: 14px; color: var(--brand-700); }
-.btn-outline:hover { background: var(--container); color: var(--ink-900); }
 .notice { margin: 16px 24px 0; padding: 11px 14px; border-radius: 8px; background: var(--brand-50); color: var(--brand-800); border: 1px solid var(--brand-100); font-weight: 500; font-size: 13px; }
 .panel { display: none; flex: 1; min-height: 0; flex-direction: column; }
 .panel.on { display: flex; }
@@ -159,6 +156,12 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .send:hover svg { transform: translateX(2px); }
 .dock-foot { max-width: 860px; margin: 8px auto 0; padding: 0 8px; display: flex; gap: 14px; font-size: 11px; color: var(--ink-400); }
 
+.new-chat { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--brand-700); cursor: pointer; transition: background .15s; }
+.new-chat:hover { background: var(--brand-50); }
+.new-chat svg { width: 12px; height: 12px; }
+.hero > p.tip { margin-top: 6px; font-size: 12px; color: var(--brand-700); }
+.idk-hint { margin-top: 10px; padding: 8px 12px; border-radius: 8px; background: var(--amber-bg); border: 1px solid var(--amber-line); color: var(--amber); font-size: 12px; }
+
 /* ---------- buttons and forms ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--brand-700); background: var(--brand-700); color: #fff; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: var(--shadow-sm); transition: background .2s; }
 .btn:hover { background: var(--brand-800); border-color: var(--brand-800); }
@@ -194,9 +197,9 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 .qlist { display: grid; gap: 14px; max-width: 760px; }
 .qbox { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); }
 .qbox h3 { font: 500 18px/1.4 var(--serif); margin-bottom: 12px; }
-.option { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; margin-bottom: 8px; transition: border-color .15s, background .15s; }
+.option { position: relative; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; margin-bottom: 8px; transition: border-color .15s, background .15s; }
 .option:hover { border-color: var(--brand-300); background: var(--container); }
-.option input { position: absolute; opacity: 0; }
+.option input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .option .badge { width: 24px; height: 24px; border-radius: 6px; background: var(--alt); border: 1px solid var(--border); display: grid; place-items: center; font: 600 11px var(--mono); color: var(--ink-700); flex: none; }
 .option:has(input:checked) { border-color: var(--brand-700); background: var(--brand-50); }
 .option:has(input:checked) .badge { background: var(--brand-700); border-color: var(--brand-700); color: #fff; }

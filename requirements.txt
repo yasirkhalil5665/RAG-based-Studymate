@@ -9,3 +9,7 @@ langchain-ollama
 langchain-text-splitters
 sentence-transformers
 pypdf
+rank-bm25
+pymupdf
+pytesseract
+pillow

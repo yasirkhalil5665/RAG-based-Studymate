@@ -125,7 +125,7 @@ async function upload(files) {
 
   zone.classList.add("busy");
   $("#dropTitle").textContent = `Adding ${list.length} file${list.length > 1 ? "s" : ""}`;
-  $("#dropHint").textContent = "Reading and indexing, this can take a minute";
+  $("#dropHint").textContent = "Reading and indexing. Scanned PDFs can take a few minutes";
   try {
     const result = await api("/api/documents", { method: "POST", body });
     await loadDocs();
@@ -213,6 +213,10 @@ function addAi() {
 
 function fillAnswer(ai, result) {
   ai.body.innerHTML = md(result.answer);
+  if (/^i don['’]t know/i.test(result.answer.trim())) {
+    ai.body.insertAdjacentHTML("beforeend",
+      '<p class="idk-hint">Try a more specific question, or pick one lecture under Study scope.</p>');
+  }
   if (result.sources.length) {
     ai.meta.textContent = `• ${result.sources.length} passages retrieved`;
     ai.meta.hidden = false;
@@ -445,7 +449,6 @@ function setupTabs() {
       document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === `tab-${name}`));
       $("#pageTitle").textContent = TITLES[name][0];
       $("#pill").textContent = TITLES[name][1];
-      $("#clearBtn").hidden = name !== "chat";
     }));
 }
 
@@ -462,6 +465,7 @@ async function start() {
   try {
     const config = await api("/api/config");
     $("#cardN").max = $("#quizN").max = config.max_items;
+    $("#ocrNote").textContent = config.ocr ? "Scanned pages are read with OCR" : "OCR is off: scanned pages can't be read";
     setupSummary(config.summary_styles);
     await loadDocs();
   } catch (error) {

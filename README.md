@@ -1,6 +1,6 @@
 # Studymate
 
-Chat with your lecture PDFs, and turn them into flashcards, quizzes and summaries. Answers come only from your documents and show the source pages. Everything runs on your computer: Ollama for the language model, Chroma for the vector database.
+Chat with your lecture PDFs, and turn them into flashcards, quizzes and summaries. Answers come only from your documents and show the passages they used. Everything runs on your computer: Ollama for the language model, Chroma for the vector database.
 
 ## Structure
 
@@ -8,11 +8,10 @@ Chat with your lecture PDFs, and turn them into flashcards, quizzes and summarie
 RAG_based_Studymate/
 ├── src/
 │   ├── config.py        all settings
-│   └── rag.py           all the logic: indexing, search, chat, cards, quiz, summary
-├── api/
-│   ├── main.py          the FastAPI server (routes)
-│   └── UI/              index.html, style.css, app.js
-├── notebook/all.ipynb   the same chat pipeline, step by step
+│   └── rag.py           indexing, OCR, search, chat, flashcards, quiz, summary
+├── api/main.py          the FastAPI server
+├── UI/                  index.html, style.css, app.js
+├── notebook/all.ipynb   a simple version of the chat pipeline, for learning
 ├── tests/smoke_test.py  checks the running server
 ├── data/                put your PDFs here
 └── requirements.txt
@@ -26,45 +25,63 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+**OCR (recommended).** Many lecture PDFs keep their slides as pictures, so the text is invisible to search. Studymate reads those pages with OCR. It needs the Tesseract program once:
+
+```
+sudo dnf install tesseract         # Fedora
+sudo apt install tesseract-ocr     # Ubuntu or Debian
+brew install tesseract             # Mac
+```
+
+Without it the app still works, but picture-only slides cannot be searched. The server prints a message at startup when OCR is off.
+
 Ollama must be running with the model named in `src/config.py`.
 
 ## Run
 
-From the project folder (not from inside `api/`):
+From the project folder:
 
 ```
-uvicorn api.main:app
+python -m uvicorn api.main:app --port 8080
 ```
 
-Open http://localhost:8000. Do not double-click `index.html`; it only works through the server.
+Open http://localhost:8080.
 
-PDFs in `data/` are indexed at startup. You can also add PDFs with the **Add PDFs** button. The first start is slow because models download and PDFs are embedded.
+PDFs in `data/` and `library/` are indexed at startup. You can also add PDFs with the **Add PDFs** button. The first start is slow: models download, and OCR takes about one to two seconds per picture-only page (a 130-page scanned PDF takes a couple of minutes, once).
 
-## Test
+## How a chat answer is made
 
-1. Start the server.
-2. In a second terminal, from the project folder:
-
-```
-python tests/smoke_test.py
-```
-
-It checks the library, chat with sources, follow-up memory, scoping to one document, flashcards, quiz, summary and error handling, then prints PASS or FAIL for each. It reads real answers, so it takes a few minutes with a real model.
-
-Then try the page by hand:
-- Ask a question, open a source chip, and confirm the passage is on that page of the PDF.
-- Ask a follow-up using "it" or "that" and check it still makes sense.
-- Pick one document in Study scope and confirm answers cite only that file.
-- Generate flashcards, a quiz and a summary.
-- Add a PDF with the button, then remove it.
+1. Your question is rewritten to stand on its own if it follows earlier turns.
+2. The model fixes spelling and writes two alternative phrasings.
+3. Each phrasing is searched two ways: by meaning (embeddings) and by keywords (BM25). The results are merged.
+4. A reranker scores the best 20 candidates and keeps the top 5.
+5. The slides next to each hit (the page before and after) are added, so the model sees the surrounding explanation.
+6. The model answers from those excerpts and cites file and page.
 
 ## Settings
 
-All in `src/config.py`: model names, chunk size and overlap, how many chunks go to the model, and the limits for cards and summaries. Restart after editing. Chunk settings apply to PDFs indexed afterwards; delete `chroma_db/` to re-index everything.
+All in `src/config.py`. Restart after editing.
+
+- Changing `EMBED_MODEL`, `CHUNK_SIZE`, `CHUNK_OVERLAP` or `OCR_ENABLED` makes the app build a fresh index automatically at the next start. The old index stays in `chroma_db/` and can be deleted.
+- `TOP_K`, `NEIGHBOR_PAGES` and `MAX_CONTEXT_CHARS` control how much text the model sees per question.
+
+## Test
+
+With the server running, in a second terminal:
+
+```
+python tests/smoke_test.py http://localhost:8080
+```
+
+## When you get "I don't know"
+
+Open **Source passages** under the answer.
+- If the passages are the wrong slides, the search missed. Try a more specific question, or pick one lecture under Study scope.
+- If the passages are the right slides but nearly empty, the content is a diagram or formula that text search cannot read. Only a vision model could.
+- If the passages contain the answer, tell the model to try again with a clearer question.
 
 ## Notes
 
-- Scanned PDFs (pictures of pages) have no text and cannot be indexed. The server prints `Skipped ...: no readable text` for them. Slides that are mostly images give weak answers too.
-- Removing a document that lives in `data/` only removes it from the index. It returns at the next start unless you delete the file.
+- Removing a document in `data/` only removes it from the index; it returns at the next start unless you delete the file.
 - Chat memory is kept in server memory and is cleared on restart.
 - There is no login. Keep the server on `localhost`.

@@ -1,3 +1,5 @@
+import hashlib
+import io
 import json
 import random
 import re
@@ -12,18 +14,37 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import ChatOllama
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 
 from src import config
 
+try:
+    import pymupdf
+    import pytesseract
+    from PIL import Image
+
+    pytesseract.get_tesseract_version()
+    OCR_READY = config.OCR_ENABLED
+except Exception:
+    OCR_READY = False
+if config.OCR_ENABLED and not OCR_READY:
+    print("OCR is off, so image-only slides cannot be read. Install Tesseract "
+          "(Fedora: sudo dnf install tesseract) and run: pip install pytesseract pymupdf pillow")
+
 embeddings = HuggingFaceEmbeddings(model_name=config.EMBED_MODEL)
-llm = ChatOllama(model=config.LLM_MODEL, temperature=0)
-creative_llm = ChatOllama(model=config.LLM_MODEL, temperature=config.CREATIVE_TEMPERATURE)
+llm = ChatOllama(model=config.LLM_MODEL, temperature=0, num_ctx=config.NUM_CTX)
+creative_llm = ChatOllama(model=config.LLM_MODEL, temperature=config.CREATIVE_TEMPERATURE,
+                          num_ctx=config.NUM_CTX)
 reranker = CrossEncoder(config.RERANK_MODEL)
-store = Chroma(persist_directory=config.CHROMA_DIR, embedding_function=embeddings)
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=config.CHUNK_SIZE, chunk_overlap=config.CHUNK_OVERLAP
 )
+fingerprint = hashlib.md5(
+    f"{config.EMBED_MODEL}|{config.CHUNK_SIZE}|{config.CHUNK_OVERLAP}|{config.OCR_ENABLED}".encode()
+).hexdigest()[:10]
+store = Chroma(collection_name=f"studymate-{fingerprint}",
+               persist_directory=config.CHROMA_DIR, embedding_function=embeddings)
 lock = threading.Lock()
 
 
@@ -41,9 +62,28 @@ def list_sources():
     return sorted({m["source"] for m in metas})
 
 
+def ocr_weak_pages(path, pages):
+    weak = [p for p in pages if len(p.page_content.strip()) < config.OCR_MIN_CHARS]
+    if not weak:
+        return pages
+    print(f"OCR: reading {len(weak)} image-only pages of {Path(path).name}")
+    zoom = pymupdf.Matrix(config.OCR_ZOOM, config.OCR_ZOOM)
+    with pymupdf.open(str(path)) as pdf:
+        for n, page in enumerate(weak, 1):
+            image = pdf[page.metadata["page"]].get_pixmap(matrix=zoom)
+            text = pytesseract.image_to_string(Image.open(io.BytesIO(image.tobytes("png")))).strip()
+            if len(text) > len(page.page_content.strip()):
+                page.page_content = text
+            if n % 20 == 0:
+                print(f"  OCR {n}/{len(weak)}")
+    return pages
+
+
 def add_pdf(path):
     source = source_of(path)
     pages = PyPDFLoader(str(path)).load()
+    if OCR_READY:
+        pages = ocr_weak_pages(path, pages)
     chunks = [c for c in splitter.split_documents(pages) if c.page_content.strip()]
     for chunk in chunks:
         chunk.metadata["source"] = source
@@ -63,7 +103,7 @@ def index_folder(folder):
         except Exception as error:
             print(f"Could not read {pdf.name}: {error}")
             continue
-        print(f"Indexed {pdf.name}" if count else f"Skipped {pdf.name}: no readable text (scanned PDF?)")
+        print(f"Indexed {pdf.name}" if count else f"Skipped {pdf.name}: no readable text")
 
 
 def remove_source(source):
@@ -75,13 +115,57 @@ def remove_source(source):
         path.unlink(missing_ok=True)
 
 
-# ---------- retrieval ----------
+# ---------- retrieval----------
+TOKEN = re.compile(r"[a-z0-9]+")
+keyword_cache = {"key": None, "index": None, "docs": []}
+
+
 def expand(question):
     out = llm.invoke(
         "Fix the spelling of this question, then write 2 alternative phrasings "
         "using synonyms. Return one per line, nothing else.\n\nQuestion: " + question
     ).content
     return [line.strip() for line in out.split("\n") if line.strip()][:3] or [question]
+
+
+def keyword_index():
+    ids = store.get(include=[])["ids"]
+    key = hash(frozenset(ids))
+    if key != keyword_cache["key"]:
+        data = store.get(include=["documents", "metadatas"])
+        docs = [Document(page_content=t, metadata=m)
+                for t, m in zip(data["documents"], data["metadatas"])]
+        index = BM25Okapi([TOKEN.findall(d.page_content.lower()) for d in docs]) if docs else None
+        keyword_cache.update(key=key, index=index, docs=docs)
+    return keyword_cache["index"], keyword_cache["docs"]
+
+
+def keyword_search(query, scope, n):
+    index, docs = keyword_index()
+    tokens = TOKEN.findall(query.lower())
+    if index is None or not tokens:
+        return []
+    scores = index.get_scores(tokens)
+    hits = []
+    for i in sorted(range(len(docs)), key=lambda i: scores[i], reverse=True):
+        if scores[i] <= 0:
+            break
+        if scope and docs[i].metadata["source"] != scope:
+            continue
+        hits.append(docs[i])
+        if len(hits) == n:
+            break
+    return hits
+
+
+def fuse(rankings):
+    scores, docs = {}, {}
+    for ranking in rankings:
+        for rank, doc in enumerate(ranking):
+            docs[doc.page_content] = doc
+            scores[doc.page_content] = scores.get(doc.page_content, 0) + 1 / (60 + rank)
+    best = sorted(scores, key=scores.get, reverse=True)
+    return [docs[key] for key in best[: config.CANDIDATES]]
 
 
 def rerank(question, docs):
@@ -93,19 +177,57 @@ def rerank(question, docs):
 def retrieve(question, scope=None):
     variants = expand(question)
     where = {"source": scope} if scope else None
-    candidates = {}
+    rankings = []
     for variant in variants:
-        for doc in store.similarity_search(variant, k=config.SEARCH_K, filter=where):
-            candidates[doc.page_content] = doc
-    ranked = rerank(variants[0], list(candidates.values())) if candidates else []
+        rankings.append(store.similarity_search(variant, k=config.SEARCH_K, filter=where))
+        rankings.append(keyword_search(variant, scope, config.SEARCH_K))
+    candidates = fuse(rankings)
+    ranked = rerank(variants[0], candidates) if candidates else []
     return variants, ranked
+
+
+def neighbors(doc):
+    page = doc.metadata.get("page", 0)
+    pages = list(range(page - config.NEIGHBOR_PAGES, page + config.NEIGHBOR_PAGES + 1))
+    data = store.get(
+        where={"$and": [{"source": doc.metadata["source"]}, {"page": {"$in": pages}}]},
+        include=["documents", "metadatas"],
+    )
+    return [Document(page_content=t, metadata=m) for t, m in zip(data["documents"], data["metadatas"])]
+
+
+def build_context(ranked):
+    chosen, seen, size = [], set(), 0
+
+    def add(doc):
+        nonlocal size
+        key = (doc.metadata["source"], doc.metadata.get("page", 0), doc.page_content)
+        if key in seen or size + len(doc.page_content) > config.MAX_CONTEXT_CHARS:
+            return
+        seen.add(key)
+        chosen.append(doc)
+        size += len(doc.page_content)
+
+    for _, doc in ranked:
+        add(doc)
+    if config.NEIGHBOR_PAGES:
+        for _, doc in ranked:
+            for near in neighbors(doc):
+                add(near)
+    chosen.sort(key=lambda d: (d.metadata["source"], d.metadata.get("page", 0)))
+    return chosen
 
 
 # ---------- chat ----------
 prompt = ChatPromptTemplate.from_template(
-    "You are a helpful assistant. Answer the question using only the context below. "
-    "If the context does not contain the answer, say you don't know.\n\n"
-    "Context:\n{context}\n\n"
+    "You are a study assistant. Answer the question using the lecture excerpts below. "
+    "The excerpts come from slides and notes, so they can be short or fragmentary.\n"
+    "- Use only the excerpts. Do not add facts from outside them.\n"
+    "- If the excerpts cover the question only partly, answer with what they say "
+    "and note what is missing.\n"
+    "- Say you don't know only if the excerpts are unrelated to the question.\n"
+    "- When you use an excerpt, cite it like (file, p.N).\n\n"
+    "Excerpts:\n{context}\n\n"
     "Question: {question}"
 )
 answer_chain = prompt | llm | StrOutputParser()
@@ -127,8 +249,11 @@ def ask(question, scope=None, history=None):
         return {"answer": "I don't know. Nothing matching is indexed yet.",
                 "searched_for": variants, "sources": []}
 
-    context = "\n\n".join(doc.page_content for _, doc in ranked)
-    answer = answer_chain.invoke({"context": context, "question": variants[0]})
+    context = "\n\n".join(
+        f"[{Path(d.metadata['source']).name}, p.{d.metadata.get('page', 0) + 1}]\n{d.page_content}"
+        for d in build_context(ranked)
+    )
+    answer = answer_chain.invoke({"context": context, "question": search_q})
     sources = [
         {"file": Path(doc.metadata["source"]).name,
          "page": doc.metadata.get("page", 0) + 1,
@@ -140,16 +265,21 @@ def ask(question, scope=None, history=None):
 
 
 # ---------- flashcards and quiz ----------
+def pick_rich(docs):
+    rich = [d for d in docs if len(d.page_content) >= config.MIN_STUDY_CHARS]
+    return rich if len(rich) >= 3 else docs
+
+
 def get_material(scope, topic):
     where = {"source": scope} if scope else None
     if topic.strip():
-        docs = store.similarity_search(topic.strip(), k=config.STUDY_CHUNKS, filter=where)
+        docs = store.similarity_search(topic.strip(), k=config.STUDY_CHUNKS * 2, filter=where)
     else:
         data = store.get(where=where, include=["documents", "metadatas"])
         docs = [Document(page_content=t, metadata=m)
                 for t, m in zip(data["documents"], data["metadatas"])]
         random.shuffle(docs)
-        docs = docs[: config.STUDY_CHUNKS]
+    docs = pick_rich(docs)[: config.STUDY_CHUNKS]
     return "\n\n".join(
         f"[{Path(d.metadata['source']).name} p.{d.metadata.get('page', 0) + 1}]\n{d.page_content}"
         for d in docs
@@ -219,11 +349,9 @@ STYLES = {
 
 
 def summarize(source, style):
-    try:
-        pages = [p.page_content for p in PyPDFLoader(str(config.BASE_DIR / source)).load()]
-    except Exception:
-        pages = store.get(where={"source": source}, include=["documents"])["documents"]
-    text = "\n".join(p for p in pages if p.strip())
+    data = store.get(where={"source": source}, include=["documents", "metadatas"])
+    ordered = sorted(zip(data["documents"], data["metadatas"]), key=lambda p: p[1].get("page", 0))
+    text = "\n".join(t for t, _ in ordered if t.strip())
     if not text.strip():
         return ""
     size = config.SUMMARY_BATCH_CHARS
@@ -233,4 +361,3 @@ def summarize(source, style):
         for i in range(0, len(text), size)
     ]
     return llm.invoke(STYLES[style] + "\n\nNotes from the lecture:\n" + "\n\n".join(notes)).content
-

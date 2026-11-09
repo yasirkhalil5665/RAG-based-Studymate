@@ -34,7 +34,7 @@
         <span class="drop-icon"><svg viewBox="0 0 24 24"><path d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"/></svg></span>
         <strong id="dropTitle">Add lecture PDFs</strong>
         <span id="dropHint">Browse files or drag &amp; drop</span>
-        <span class="drop-tags"><em>PDF</em><small>Scanned pages can't be read</small></span>
+        <span class="drop-tags"><em>PDF</em><small id="ocrNote">Checking OCR…</small></span>
         <input id="file" type="file" accept="application/pdf,.pdf" multiple hidden>
       </label>
     </div>
@@ -66,8 +66,6 @@
         <button role="tab" aria-selected="false" data-tab="quiz"><svg viewBox="0 0 24 24"><path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Practice quiz</button>
         <button role="tab" aria-selected="false" data-tab="summary"><svg viewBox="0 0 24 24"><path d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12"/></svg>Summary</button>
       </nav>
-
-      <button class="btn-outline" type="button" id="clearBtn"><svg viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>New chat</button>
     </header>
 
     <div class="notice" id="notice" hidden>Add at least one PDF in the library to start studying.</div>
@@ -78,18 +76,19 @@
           <div class="hero-icon"><svg viewBox="0 0 24 24"><path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z"/></svg></div>
           <h2>What would you like to explore?</h2>
           <p>Answers come only from your documents, and every answer shows the passages it used.</p>
+          <p class="tip">Tip: pick one lecture under Study scope for more focused answers.</p>
           <div class="suggest">
-            <button type="button" class="paper-card" data-prompt="Explain the main idea of this lecture in simple terms.">
-              <span class="s-ico">💡</span><span><b>Explain the main idea</b><small>A plain-language overview</small></span>
+            <button type="button" class="paper-card" data-prompt="Define the key terms in this lecture.">
+              <span class="s-ico">💡</span><span><b>Define the key terms</b><small>Pull out what to memorize</small></span>
             </button>
-            <button type="button" class="paper-card" data-prompt="List the key definitions and formulas.">
-              <span class="s-ico">📐</span><span><b>Key definitions and formulas</b><small>Pull out what to memorize</small></span>
+            <button type="button" class="paper-card" data-prompt="Explain the main concept step by step.">
+              <span class="s-ico">📐</span><span><b>Explain a concept</b><small>Step by step, in plain language</small></span>
             </button>
             <button type="button" class="paper-card" data-prompt="Give a worked example of the main concept.">
               <span class="s-ico">🎯</span><span><b>Show a worked example</b><small>See the idea applied</small></span>
             </button>
-            <button type="button" class="paper-card" data-prompt="What are the most important takeaways?">
-              <span class="s-ico">🔍</span><span><b>Main takeaways</b><small>What matters most</small></span>
+            <button type="button" class="paper-card" data-prompt="Compare the main methods covered and when to use each.">
+              <span class="s-ico">🔍</span><span><b>Compare methods</b><small>When to use which</small></span>
             </button>
           </div>
         </div>
@@ -97,7 +96,7 @@
 
       <form class="dock-wrap" id="chatForm">
         <div class="dock">
-          <div class="dock-hint"><span class="dot"></span><span id="scopeHint">Searching all documents</span></div>
+          <div class="dock-hint"><span class="dot"></span><span id="scopeHint">Searching all documents</span><button type="button" class="new-chat" id="clearBtn"><svg viewBox="0 0 24 24"><path d="M12 4.5v15m7.5-7.5h-15"/></svg>New chat</button></div>
           <div class="dock-row">
             <textarea id="question" rows="1" placeholder="Ask a question about your lectures" aria-label="Question"></textarea>
             <button class="send" id="sendBtn" type="submit"><span>Send</span><svg viewBox="0 0 24 24"><path d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg></button>

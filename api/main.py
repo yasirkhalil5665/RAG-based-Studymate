@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from src import config, rag
 
-UI_DIR = Path(__file__).parent.parent / "UI"
+UI_DIR = config.BASE_DIR / "UI"
 sessions = {}
 
 
@@ -34,6 +34,7 @@ class SummaryIn(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await run_in_threadpool(rag.index_folder, config.DATA_DIR)
+    await run_in_threadpool(rag.index_folder, config.LIB_DIR)
     yield
 
 
@@ -52,7 +53,7 @@ def check_scope(scope):
 
 @app.get("/api/config")
 def get_config():
-    return {"summary_styles": list(rag.STYLES), "max_items": config.MAX_ITEMS}
+    return {"summary_styles": list(rag.STYLES), "max_items": config.MAX_ITEMS, "ocr": rag.OCR_READY}
 
 
 @app.get("/api/documents")
@@ -82,7 +83,7 @@ def upload(files: list[UploadFile] = File(...)):
                 added.append(name)
             else:
                 dest.unlink(missing_ok=True)
-                skipped.append(f"{name}: no readable text (scanned PDF?)")
+                skipped.append(f"{name}: no readable text (scanned PDF? see README, OCR)")
     return {"added": added, "skipped": skipped}
 
 
