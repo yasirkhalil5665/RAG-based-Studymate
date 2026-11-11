@@ -38,3 +38,4 @@ SUMMARY_BATCH_CHARS = 6000
 
 for folder in (DATA_DIR, LIB_DIR):
     folder.mkdir(parents=True, exist_ok=True)
+
