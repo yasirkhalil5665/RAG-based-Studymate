@@ -1,17 +1,20 @@
+import base64
+import secrets
 import shutil
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from starlette.concurrency import run_in_threadpool
 
 from src import config, rag
 
 UI_DIR = config.BASE_DIR / "UI"
 sessions = {}
+state = {"indexing": False}
 
 
 class ChatIn(BaseModel):
@@ -31,14 +34,41 @@ class SummaryIn(BaseModel):
     style: str = "Short overview"
 
 
+def index_everything():
+    try:
+        rag.index_folder(config.DATA_DIR)
+        rag.index_folder(config.LIB_DIR)
+    finally:
+        state["indexing"] = False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await run_in_threadpool(rag.index_folder, config.DATA_DIR)
-    await run_in_threadpool(rag.index_folder, config.LIB_DIR)
+    if not config.APP_PASSWORD:
+        print("WARNING: APP_PASSWORD is not set, so anyone with the URL can use this app.")
+    state["indexing"] = True
+    threading.Thread(target=index_everything, daemon=True).start()
     yield
 
 
 app = FastAPI(title="Studymate", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def require_login(request: Request, call_next):
+    if not config.APP_PASSWORD or request.url.path == "/health":
+        return await call_next(request)
+    header = request.headers.get("authorization", "")
+    if header.lower().startswith("basic "):
+        try:
+            user, _, password = base64.b64decode(header[6:]).decode().partition(":")
+        except Exception:
+            user, password = "", ""
+        if (secrets.compare_digest(user.encode(), config.APP_USER.encode())
+                and secrets.compare_digest(password.encode(), config.APP_PASSWORD.encode())):
+            return await call_next(request)
+    return Response("Login required", status_code=401,
+                    headers={"WWW-Authenticate": 'Basic realm="Studymate"'})
 
 
 @app.exception_handler(Exception)
@@ -51,9 +81,15 @@ def check_scope(scope):
         raise HTTPException(404, "That document is not in the library.")
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "indexing": state["indexing"]}
+
+
 @app.get("/api/config")
 def get_config():
-    return {"summary_styles": list(rag.STYLES), "max_items": config.MAX_ITEMS, "ocr": rag.OCR_READY}
+    return {"summary_styles": list(rag.STYLES), "max_items": config.MAX_ITEMS,
+            "ocr": rag.OCR_READY, "indexing": state["indexing"]}
 
 
 @app.get("/api/documents")

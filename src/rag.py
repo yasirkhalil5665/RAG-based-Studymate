@@ -89,6 +89,8 @@ def add_pdf(path):
         chunk.metadata["source"] = source
     if chunks:
         with lock:
+            if store.get(where={"source": source}, include=[], limit=1)["ids"]:
+                return len(chunks)
             store.add_documents(chunks)
     return len(chunks)
 
@@ -115,7 +117,7 @@ def remove_source(source):
         path.unlink(missing_ok=True)
 
 
-# ---------- retrieval----------
+# ---------- retrieval: meaning search + keyword search, merged, reranked ----------
 TOKEN = re.compile(r"[a-z0-9]+")
 keyword_cache = {"key": None, "index": None, "docs": []}
 

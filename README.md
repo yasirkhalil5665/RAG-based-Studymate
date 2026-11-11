@@ -10,6 +10,8 @@ RAG_based_Studymate/
 │   ├── config.py        all settings
 │   └── rag.py           indexing, OCR, search, chat, flashcards, quiz, summary
 ├── api/main.py          the FastAPI server
+├── Dockerfile           builds the app for deployment
+├── render.yaml          Render deployment settings
 ├── UI/                  index.html, style.css, app.js
 ├── notebook/all.ipynb   a simple version of the chat pipeline, for learning
 ├── tests/smoke_test.py  checks the running server
@@ -79,6 +81,35 @@ Open **Source passages** under the answer.
 - If the passages are the wrong slides, the search missed. Try a more specific question, or pick one lecture under Study scope.
 - If the passages are the right slides but nearly empty, the content is a diagram or formula that text search cannot read. Only a vision model could.
 - If the passages contain the answer, tell the model to try again with a clearer question.
+
+## Deploy to Render
+
+The app is ready for Render with the `Dockerfile` and `render.yaml` in this folder.
+
+1. Put the project in a **private** GitHub repository. Do not commit PDFs (`data/*.pdf` is ignored).
+2. In Render, create an **Environment Group** named `studymate-env` (or change the name in `render.yaml`) with:
+
+   | Key | Value |
+   |---|---|
+   | `OLLAMA_API_KEY` | your key from ollama.com/settings/keys |
+   | `APP_PASSWORD` | a long password you choose |
+   | `APP_USER` | optional, default is `studymate` |
+
+3. In Render, choose **New > Blueprint**, select the repository, and apply. Render reads `render.yaml`, builds the image, attaches a 5 GB disk at `/data`, and links the group.
+4. Open the service URL. The browser asks for the user name and password.
+5. Add your PDFs with **Add PDFs**. They are stored on the disk and survive redeploys.
+
+Settings used on Render, set in `render.yaml` (keep each key in one place only):
+
+| Key | Value | Meaning |
+|---|---|---|
+| `STORAGE_DIR` | `/data` | where the index and uploaded PDFs live (the disk) |
+| `OLLAMA_HOST` | `https://ollama.com` | use Ollama's cloud API |
+| `LLM_MODEL` | `gemma4:31b` | the name on the API (no `-cloud`) |
+
+The embedding and reranker models are downloaded while the image is built, so a restart does not download them again. The server answers `/health` straight away and indexes documents in the background.
+
+Without `APP_PASSWORD`, anyone with the URL can use the app and your Ollama quota. The server prints a warning at startup when it is not set.
 
 ## Notes
 

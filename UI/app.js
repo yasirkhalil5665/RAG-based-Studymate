@@ -468,9 +468,29 @@ async function start() {
     $("#ocrNote").textContent = config.ocr ? "Scanned pages are read with OCR" : "OCR is off: scanned pages can't be read";
     setupSummary(config.summary_styles);
     await loadDocs();
+    if (config.indexing) watchIndexing();
   } catch (error) {
     toast(error.message, true);
   }
+}
+
+function watchIndexing() {
+  const notice = $("#notice");
+  const normal = notice.textContent;
+  notice.textContent = "Indexing your documents in the background. The first time can take a few minutes.";
+  notice.hidden = false;
+  const timer = setInterval(async () => {
+    try {
+      const status = await api("/api/config");
+      if (!status.indexing) {
+        clearInterval(timer);
+        notice.textContent = normal;
+      }
+      await loadDocs();
+    } catch (error) {
+      clearInterval(timer);
+    }
+  }, 4000);
 }
 
 start();
