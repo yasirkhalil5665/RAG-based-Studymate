@@ -12,7 +12,7 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
@@ -33,9 +33,11 @@ if config.OCR_ENABLED and not OCR_READY:
           "(Fedora: sudo dnf install tesseract) and run: pip install pytesseract pymupdf pillow")
 
 embeddings = HuggingFaceEmbeddings(model_name=config.EMBED_MODEL)
-llm = ChatOllama(model=config.LLM_MODEL, temperature=0, num_ctx=config.NUM_CTX)
-creative_llm = ChatOllama(model=config.LLM_MODEL, temperature=config.CREATIVE_TEMPERATURE,
-                          num_ctx=config.NUM_CTX)
+llm = ChatOpenAI(model=config.LLM_MODEL, temperature=0, base_url=config.LLM_BASE_URL,
+                 api_key=config.LLM_API_KEY, max_retries=config.LLM_MAX_RETRIES)
+creative_llm = ChatOpenAI(model=config.LLM_MODEL, temperature=config.CREATIVE_TEMPERATURE,
+                          base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY,
+                          max_retries=config.LLM_MAX_RETRIES)
 reranker = CrossEncoder(config.RERANK_MODEL)
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=config.CHUNK_SIZE, chunk_overlap=config.CHUNK_OVERLAP
