@@ -11,11 +11,47 @@ const COPY_ICON = '<svg viewBox="0 0 24 24"><path d="M15.666 3.888A2.25 2.25 0 0
 const BOOK_ICON = '<svg viewBox="0 0 24 24"><path d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>';
 
 function md(text) {
+  const maths = [];
+  text = String(text).replace(/\\\[[\s\S]+?\\\]|\$\$[\s\S]+?\$\$|\\\([\s\S]+?\\\)/g, (m) => {
+    maths.push(m);
+    return `@@M${maths.length - 1}@@`;
+  });
   const inline = (t) => t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`(.+?)`/g, "<code>$1</code>");
+  const cell = (t) => inline(t.trim()).replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+  const splitRow = (l) => {
+    // split on | but not inside (...), so P(Yes | instance) stays in one cell
+    const t = l.trim().replace(/^\|/, "").replace(/\|$/, "");
+    const cells = [];
+    let cur = "", depth = 0;
+    for (const ch of t) {
+      if (ch === "(") depth++;
+      else if (ch === ")" && depth > 0) depth--;
+      if (ch === "|" && depth === 0) { cells.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    cells.push(cur);
+    return cells;
+  };
+  const isTableLine = (l) => /^\s*\|.*\|\s*$/.test(l);
+  const isSeparator = (l) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l);
   let html = "";
   let inList = false;
-  for (const raw of esc(text).split("\n")) {
-    const line = raw.trimEnd();
+  const lines = esc(text).split("\n").map((l) => l.trimEnd());
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isTableLine(line) && i + 1 < lines.length && isSeparator(lines[i + 1])) {
+      if (inList) { html += "</ul>"; inList = false; }
+      const head = splitRow(line);
+      let j = i + 2;
+      const body = [];
+      while (j < lines.length && isTableLine(lines[j])) { body.push(splitRow(lines[j])); j++; }
+      html += '<div class="tbl"><table><thead><tr>' + head.map((c) => `<th>${cell(c)}</th>`).join("") +
+        "</tr></thead><tbody>" +
+        body.map((r) => "<tr>" + r.map((c) => `<td>${cell(c)}</td>`).join("") + "</tr>").join("") +
+        "</tbody></table></div>";
+      i = j - 1;
+      continue;
+    }
     const bullet = line.match(/^\s*[-*•]\s+(.*)/);
     if (bullet) {
       if (!inList) { html += "<ul>"; inList = true; }
@@ -27,7 +63,22 @@ function md(text) {
     if (heading) html += `<h3>${inline(heading[1])}</h3>`;
     else if (line.trim()) html += `<p>${inline(line)}</p>`;
   }
-  return html + (inList ? "</ul>" : "");
+  html += inList ? "</ul>" : "";
+  return html.replace(/@@M(\d+)@@/g, (_, i) => esc(maths[i]));
+}
+
+function typeset(el) {
+  if (!el || typeof window.renderMathInElement !== "function") return;
+  try {
+    window.renderMathInElement(el, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false },
+      ],
+      throwOnError: false,
+    });
+  } catch (e) { /* leave the text as is */ }
 }
 
 let toastTimer;
@@ -213,6 +264,7 @@ function addAi() {
 
 function fillAnswer(ai, result) {
   ai.body.innerHTML = md(result.answer);
+  typeset(ai.body);
   if (/^i don['’]t know/i.test(result.answer.trim())) {
     ai.body.insertAdjacentHTML("beforeend",
       '<p class="idk-hint">Try a more specific question, or pick one lecture under Study scope.</p>');
@@ -315,6 +367,7 @@ function renderCards() {
   }
   html += '<div class="below"><button class="btn ghost" id="export">Export for Anki or Excel</button></div>';
   area.innerHTML = html;
+  typeset(area);
 
   const on = (id, handler) => { const el = $(`#${id}`, area); if (el) el.onclick = handler; };
   const next = (wasMissed) => {
@@ -374,6 +427,7 @@ function renderQuiz() {
     : "";
   const footer = done ? "" : '<div class="below"><button class="btn" id="submitQuiz">Submit answers</button></div>';
   area.innerHTML = `${header}<div class="qlist">${boxes}</div>${footer}`;
+  typeset(area);
 
   area.querySelectorAll("input[type=radio]").forEach((input) =>
     input.addEventListener("change", () => { picks[Number(input.name.slice(1))] = Number(input.value); }));
@@ -424,6 +478,7 @@ function setupSummary(styles) {
       area.innerHTML = `<div class="prose">${md(summary)}</div>
         <div class="below"><button class="btn ghost" id="copySum">Copy</button>
         <button class="btn ghost" id="saveSum">Download as Markdown</button></div>`;
+      typeset(area);
       $("#copySum").onclick = () => copyText(summary);
       $("#saveSum").onclick = () => download("summary.md", summary);
     }).then(() => {

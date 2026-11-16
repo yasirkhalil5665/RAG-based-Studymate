@@ -249,3 +249,9 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
   .card { padding: 24px 22px; }
 }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* tables in answers and summaries */
+.tbl { overflow-x: auto; margin: 0 0 12px; }
+.tbl table { border-collapse: collapse; width: 100%; font-size: 13px; line-height: 1.5; }
+.tbl th, .tbl td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; vertical-align: top; }
+.tbl th { background: var(--alt); font-weight: 600; }

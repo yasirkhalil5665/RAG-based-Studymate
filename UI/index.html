@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -44,9 +45,8 @@
       <span class="count" id="docCount">0</span>
     </div>
     <ul class="doc-list" id="docs"></ul>
-    <p class="side-empty" id="docsEmpty" hidden>Your documents will appear here.</p>
+    <p class="side-empty" id="docsEmpty" hidden>Might hallucinate, lol.</p>
 
-    <div class="side-foot"><span class="dot"></span>Everything runs on this computer</div>
   </aside>
 
   <main class="workspace">
@@ -136,6 +136,8 @@
 </div>
 
 <div class="toast" id="toast" role="status"></div>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 <script src="app.js" defer></script>
 </body>
 </html>
